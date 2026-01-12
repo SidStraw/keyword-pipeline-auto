@@ -33,6 +33,7 @@ jobs:
           GAS_WEB_APP_URL: ${{ secrets.GAS_WEB_APP_URL }}
           MY_CUSTOM_API_KEY: ${{ secrets.MY_CUSTOM_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           SEED_KEYWORDS: ${{ secrets.SEED_KEYWORDS }}
         run: npx ts-node src/index.ts
 
@@ -44,3 +45,4 @@ jobs:
 #
 # Optional GitHub Secrets:
 # - SEED_KEYWORDS: Comma-separated seed keywords (if not provided, Gemini will generate them)
+# - DISCORD_WEBHOOK_URL: Discord webhook URL for pipeline notifications
