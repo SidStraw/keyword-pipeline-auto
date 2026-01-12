@@ -15,9 +15,9 @@ export interface Config {
   serperApiKey: string;
   gasWebAppUrl: string;
   myCustomApiKey: string;
-  geminiApiKey: string;
+  ghToken: string;
   seedKeywords: string[];
-  geminiModel: string;
+  copilotModel: string;
   discordWebhookUrl: string | null;
 }
 

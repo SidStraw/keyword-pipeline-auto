@@ -24,6 +24,9 @@ jobs:
           node-version: 'lts/*'
           cache: 'npm'
 
+      - name: Install GitHub Copilot CLI
+        run: npm install -g @github/copilot
+
       - name: Install dependencies
         run: npm ci
 
@@ -32,7 +35,8 @@ jobs:
           SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
           GAS_WEB_APP_URL: ${{ secrets.GAS_WEB_APP_URL }}
           MY_CUSTOM_API_KEY: ${{ secrets.MY_CUSTOM_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          COPILOT_MODEL: ${{ secrets.COPILOT_MODEL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           SEED_KEYWORDS: ${{ secrets.SEED_KEYWORDS }}
         run: npx ts-node src/index.ts
@@ -41,8 +45,9 @@ jobs:
 # - SERPER_API_KEY: Your Serper.dev API key for SERP data
 # - GAS_WEB_APP_URL: The endpoint for the Google Apps Script Web App
 # - MY_CUSTOM_API_KEY: For authenticating the POST request to GAS
-# - GEMINI_API_KEY: For generating seed keywords via Google Gemini API
+# - GH_TOKEN: GitHub PAT with "Copilot Requests" permission for AI generation
 #
 # Optional GitHub Secrets:
-# - SEED_KEYWORDS: Comma-separated seed keywords (if not provided, Gemini will generate them)
+# - SEED_KEYWORDS: Comma-separated seed keywords (if not provided, Copilot will generate them)
+# - COPILOT_MODEL: AI model to use (default: claude-haiku-4.5, options: claude-sonnet-4.5, gpt-5)
 # - DISCORD_WEBHOOK_URL: Discord webhook URL for pipeline notifications

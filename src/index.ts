@@ -33,7 +33,7 @@ async function main(): Promise<void> {
       seeds = config.seedKeywords;
       console.log(`📋 Using provided seed keywords: ${seeds.join(', ')}`);
     } else {
-      console.log('🤖 Auto-Pilot Mode: Generating seeds with Gemini...');
+      console.log('🤖 Auto-Pilot Mode: Generating seeds with Copilot CLI...');
       seeds = await generateNicheIdeas();
 
       if (seeds.length === 0) {
