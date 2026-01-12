@@ -1,32 +1,49 @@
 import { config } from './config';
 import { fetchSuggestions, analyzeCompetition } from './services/keywordService';
-import { SheetAdapter } from './services/sheetService';
+import { saveKeywords } from './services/sheetService';
+import { generateNicheIdeas } from './services/aiService';
 import { KeywordMetric } from './types';
-
-// Define seed keywords for keyword discovery
-const SEEDS = ['pdf converter', 'image resizer', 'ai generator'];
 
 // Maximum suggestions to process per seed (to save API credits)
 const MAX_SUGGESTIONS_PER_SEED = 5;
 
 // Maximum allInTitleCount threshold for filtering opportunities
-const MAX_ALLINTITLE_THRESHOLD = 1000;
+const MAX_ALLINTITLE_THRESHOLD = 2000;
 
 /**
  * Main execution function.
  */
 async function main(): Promise<void> {
   console.log('Starting Keyword Discovery Automation...');
-  console.log(`Seeds: ${SEEDS.join(', ')}`);
+  console.log('---');
+
+  // Step 1: Check Seeds
+  let seeds: string[];
+
+  if (config.seedKeywords.length > 0) {
+    seeds = config.seedKeywords;
+    console.log(`📋 Using provided seed keywords: ${seeds.join(', ')}`);
+  } else {
+    console.log('🤖 Auto-Pilot Mode: Generating seeds with Gemini...');
+    seeds = await generateNicheIdeas();
+
+    if (seeds.length === 0) {
+      console.error('❌ Failed to generate seed keywords. Exiting.');
+      process.exit(1);
+    }
+
+    console.log(`🎯 Generated seeds: ${seeds.join(', ')}`);
+  }
+
   console.log(`Max suggestions per seed: ${MAX_SUGGESTIONS_PER_SEED}`);
   console.log(`AllInTitle threshold: < ${MAX_ALLINTITLE_THRESHOLD}`);
   console.log('---');
 
   const allMetrics: KeywordMetric[] = [];
 
-  // Process each seed keyword
-  for (const seed of SEEDS) {
-    console.log(`\nProcessing seed: "${seed}"`);
+  // Step 2: Analysis (The Loop)
+  for (const seed of seeds) {
+    console.log(`\n🔍 Processing seed: "${seed}"`);
 
     try {
       // Fetch suggestions from Google Suggest
@@ -57,25 +74,24 @@ async function main(): Promise<void> {
   }
 
   console.log('\n---');
-  console.log(`Total keywords found: ${allMetrics.length}`);
+  console.log(`📊 Total keywords found: ${allMetrics.length}`);
 
-  // Save results to Google Sheets
+  // Step 3: Save results
   if (allMetrics.length > 0) {
-    console.log('\nSaving results to Google Sheets...');
+    console.log('\n💾 Saving results to Google Sheets via GAS...');
 
     try {
-      const sheetAdapter = new SheetAdapter(config);
-      await sheetAdapter.saveKeywords(allMetrics);
-      console.log('Successfully saved all keywords to Google Sheets!');
+      await saveKeywords(allMetrics);
+      console.log('✅ Successfully saved all keywords!');
     } catch (error) {
-      console.error('Error saving to Google Sheets:', error);
+      console.error('❌ Error saving to Google Sheets:', error);
       throw error;
     }
   } else {
-    console.log('\nNo keywords to save.');
+    console.log('\n⚠️ No keywords to save.');
   }
 
-  console.log('\nKeyword Discovery Automation completed!');
+  console.log('\n🎉 Keyword Discovery Automation completed!');
 }
 
 // Run the main function

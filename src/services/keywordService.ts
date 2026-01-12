@@ -57,7 +57,7 @@ export async function analyzeCompetition(keyword: string): Promise<KeywordMetric
       },
       {
         headers: {
-          'X-API-KEY': config.SERPER_API_KEY,
+          'X-API-KEY': config.serperApiKey,
           'Content-Type': 'application/json',
         },
       }

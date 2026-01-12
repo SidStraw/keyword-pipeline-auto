@@ -29,14 +29,18 @@ jobs:
 
       - name: Run keyword discovery script
         env:
-          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
-          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          GAS_WEB_APP_URL: ${{ secrets.GAS_WEB_APP_URL }}
+          MY_CUSTOM_API_KEY: ${{ secrets.MY_CUSTOM_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SEED_KEYWORDS: ${{ secrets.SEED_KEYWORDS }}
         run: npx ts-node src/index.ts
 
 # Required GitHub Secrets:
-# - GOOGLE_SERVICE_ACCOUNT_EMAIL: The email address of your Google service account
-# - GOOGLE_PRIVATE_KEY: The private key from your Google service account JSON file
-# - GOOGLE_SHEET_ID: The ID of your Google Sheet (from the URL)
 # - SERPER_API_KEY: Your Serper.dev API key for SERP data
+# - GAS_WEB_APP_URL: The endpoint for the Google Apps Script Web App
+# - MY_CUSTOM_API_KEY: For authenticating the POST request to GAS
+# - GEMINI_API_KEY: For generating seed keywords via Google Gemini API
+#
+# Optional GitHub Secrets:
+# - SEED_KEYWORDS: Comma-separated seed keywords (if not provided, Gemini will generate them)

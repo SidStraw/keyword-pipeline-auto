@@ -12,8 +12,9 @@ export interface KeywordMetric {
  * Configuration interface for environment variables.
  */
 export interface Config {
-  SERVICE_ACCOUNT_EMAIL: string;
-  PRIVATE_KEY: string;
-  SHEET_ID: string;
-  SERPER_API_KEY: string;
+  serperApiKey: string;
+  gasWebAppUrl: string;
+  myCustomApiKey: string;
+  geminiApiKey: string;
+  seedKeywords: string[];
 }

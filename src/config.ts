@@ -6,38 +6,41 @@ dotenv.config();
 
 /**
  * Loads and validates environment variables.
- * Handles PRIVATE_KEY newline replacement for GitHub Secrets compatibility.
  */
 function loadConfig(): Config {
-  const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY;
-  const sheetId = process.env.GOOGLE_SHEET_ID;
   const serperApiKey = process.env.SERPER_API_KEY;
-
-  if (!serviceAccountEmail) {
-    throw new Error('Missing required environment variable: GOOGLE_SERVICE_ACCOUNT_EMAIL');
-  }
-
-  if (!privateKey) {
-    throw new Error('Missing required environment variable: GOOGLE_PRIVATE_KEY');
-  }
-
-  if (!sheetId) {
-    throw new Error('Missing required environment variable: GOOGLE_SHEET_ID');
-  }
+  const gasWebAppUrl = process.env.GAS_WEB_APP_URL;
+  const myCustomApiKey = process.env.MY_CUSTOM_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const seedKeywordsEnv = process.env.SEED_KEYWORDS;
 
   if (!serperApiKey) {
     throw new Error('Missing required environment variable: SERPER_API_KEY');
   }
 
-  // Handle newline replacement for PRIVATE_KEY from GitHub Secrets
-  const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
+  if (!gasWebAppUrl) {
+    throw new Error('Missing required environment variable: GAS_WEB_APP_URL');
+  }
+
+  if (!myCustomApiKey) {
+    throw new Error('Missing required environment variable: MY_CUSTOM_API_KEY');
+  }
+
+  if (!geminiApiKey) {
+    throw new Error('Missing required environment variable: GEMINI_API_KEY');
+  }
+
+  // Parse optional SEED_KEYWORDS (comma-separated) or default to empty array
+  const seedKeywords = seedKeywordsEnv
+    ? seedKeywordsEnv.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
+    : [];
 
   return {
-    SERVICE_ACCOUNT_EMAIL: serviceAccountEmail,
-    PRIVATE_KEY: formattedPrivateKey,
-    SHEET_ID: sheetId,
-    SERPER_API_KEY: serperApiKey,
+    serperApiKey,
+    gasWebAppUrl,
+    myCustomApiKey,
+    geminiApiKey,
+    seedKeywords,
   };
 }
 
