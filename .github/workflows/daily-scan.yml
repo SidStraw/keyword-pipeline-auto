@@ -1,0 +1,46 @@
+name: Daily Keyword Scan
+
+on:
+  schedule:
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allow manual triggering
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run keyword discovery script
+        env:
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          GAS_WEB_APP_URL: ${{ secrets.GAS_WEB_APP_URL }}
+          MY_CUSTOM_API_KEY: ${{ secrets.MY_CUSTOM_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SEED_KEYWORDS: ${{ secrets.SEED_KEYWORDS }}
+        run: npx ts-node src/index.ts
+
+# Required GitHub Secrets:
+# - SERPER_API_KEY: Your Serper.dev API key for SERP data
+# - GAS_WEB_APP_URL: The endpoint for the Google Apps Script Web App
+# - MY_CUSTOM_API_KEY: For authenticating the POST request to GAS
+# - GEMINI_API_KEY: For generating seed keywords via Google Gemini API
+#
+# Optional GitHub Secrets:
+# - SEED_KEYWORDS: Comma-separated seed keywords (if not provided, Gemini will generate them)
