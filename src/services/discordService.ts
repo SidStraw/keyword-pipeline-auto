@@ -154,6 +154,7 @@ function calculateStats(metrics: KeywordMetric[]): {
 
 /**
  * Builds a success embed for pipeline completion.
+ * Only includes basic stats, AI summary will be sent as separate message.
  */
 function buildSuccessEmbed(result: PipelineResult): DiscordEmbed {
   const stats = calculateStats(result.metrics);
@@ -189,14 +190,8 @@ function buildSuccessEmbed(result: PipelineResult): DiscordEmbed {
     timestamp: result.endTime.toISOString(),
   };
 
-  // Add AI summary if available (truncated)
-  if (result.aiSummary) {
-    embed.fields!.push({
-      name: '🤖 AI 摘要',
-      value: truncateText(result.aiSummary, 1000),
-      inline: false,
-    });
-  }
+  // AI summary will be sent as separate plain text message
+  // to avoid character limits and preserve markdown formatting
 
   return embed;
 }
@@ -234,23 +229,99 @@ function buildErrorEmbed(result: PipelineResult): DiscordEmbed {
 }
 
 /**
+ * Discord message character limit
+ */
+const DISCORD_MESSAGE_LIMIT = 2000;
+
+/**
+ * Splits a long message into chunks that fit Discord's character limit.
+ * Tries to split at newlines to preserve formatting.
+ * @param message - The message to split
+ * @param maxLength - Maximum length per chunk (default: 2000)
+ * @returns Array of message chunks
+ */
+function splitMessage(message: string, maxLength: number = DISCORD_MESSAGE_LIMIT): string[] {
+  if (message.length <= maxLength) {
+    return [message];
+  }
+
+  const chunks: string[] = [];
+  let remaining = message;
+
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLength) {
+      chunks.push(remaining);
+      break;
+    }
+
+    // Try to find a good split point (newline) before the limit
+    let splitIndex = remaining.lastIndexOf('\n', maxLength);
+
+    // If no newline found, try to split at a space
+    if (splitIndex === -1 || splitIndex < maxLength * 0.5) {
+      splitIndex = remaining.lastIndexOf(' ', maxLength);
+    }
+
+    // If still no good split point, force split at limit
+    if (splitIndex === -1 || splitIndex < maxLength * 0.5) {
+      splitIndex = maxLength;
+    }
+
+    chunks.push(remaining.slice(0, splitIndex));
+    remaining = remaining.slice(splitIndex).trimStart();
+  }
+
+  return chunks;
+}
+
+/**
  * Sends pipeline completion notification to Discord.
+ * For success: sends embed + AI summary as separate plain text messages
+ * For failure: sends error embed only
  * @param result - Pipeline execution result
  * @returns true if notification sent successfully
  */
 export async function sendPipelineNotification(
   result: PipelineResult
 ): Promise<boolean> {
-  const embed = result.success
-    ? buildSuccessEmbed(result)
-    : buildErrorEmbed(result);
+  if (result.success) {
+    // Send success embed first
+    const embed = buildSuccessEmbed(result);
+    const embedPayload: DiscordWebhookPayload = {
+      username: 'Keyword Pipeline',
+      embeds: [embed],
+    };
 
-  const payload: DiscordWebhookPayload = {
-    username: 'Keyword Pipeline',
-    embeds: [embed],
-  };
+    const embedSent = await sendWebhook(embedPayload);
+    if (!embedSent) return false;
 
-  return sendWebhook(payload);
+    // Send AI summary as plain text message(s) to preserve markdown formatting
+    if (result.aiSummary) {
+      const summaryHeader = '## 🤖 AI 分析總結\n\n';
+      const fullSummary = summaryHeader + result.aiSummary;
+      const chunks = splitMessage(fullSummary);
+
+      for (const chunk of chunks) {
+        const textPayload: DiscordWebhookPayload = {
+          content: chunk,
+          username: 'Keyword Pipeline',
+        };
+        await sendWebhook(textPayload);
+        // Small delay between messages to maintain order
+        await delay(500);
+      }
+    }
+
+    return true;
+  } else {
+    // Send error embed
+    const embed = buildErrorEmbed(result);
+    const payload: DiscordWebhookPayload = {
+      username: 'Keyword Pipeline',
+      embeds: [embed],
+    };
+    return sendWebhook(payload);
+  }
 }
 
 /**
