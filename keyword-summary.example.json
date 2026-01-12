@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-01-12T00:00:00.000Z",
+  "totalKeywords": 3,
+  "keywords": [
+    {
+      "keyword": "example keyword 1",
+      "source": "google-suggest",
+      "totalResults": 5,
+      "allInTitleCount": 5
+    },
+    {
+      "keyword": "example keyword 2",
+      "source": "google-suggest",
+      "totalResults": 3,
+      "allInTitleCount": 3
+    },
+    {
+      "keyword": "example keyword 3",
+      "source": "google-suggest",
+      "totalResults": 8,
+      "allInTitleCount": 8
+    }
+  ],
+  "aiSummary": "這是 AI 生成的總結範例。\n\n## 總體評估\n這批關鍵字展現出良好的低競爭機會...\n\n## 優先建議\n1. 優先針對 keyword 1\n2. 次要針對 keyword 2\n\n## 內容策略\n建議創建教學類內容...\n\n## 下一步行動\n1. 開始撰寫第一篇文章\n2. 優化 SEO 標題"
+}

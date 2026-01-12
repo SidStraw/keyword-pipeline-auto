@@ -8,7 +8,8 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test:serper": "ts-node test-serper.ts",
-    "test:quick": "ts-node quick-test.ts"
+    "test:quick": "ts-node quick-test.ts",
+    "test:ai-summary": "ts-node test-ai-summary.ts"
   },
   "keywords": [
     "keyword-discovery",

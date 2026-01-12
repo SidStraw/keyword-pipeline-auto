@@ -1,8 +1,9 @@
 import { config } from './config';
 import { fetchSuggestions, analyzeCompetition } from './services/keywordService';
 import { saveKeywords } from './services/sheetService';
-import { generateNicheIdeas } from './services/aiService';
+import { generateNicheIdeas, summarizeKeywordResults } from './services/aiService';
 import { KeywordMetric } from './types';
+import * as fs from 'fs';
 
 // Maximum suggestions to process per seed (to save API credits)
 const MAX_SUGGESTIONS_PER_SEED = 5;
@@ -88,6 +89,41 @@ async function main(): Promise<void> {
     } catch (error) {
       console.error('❌ Error saving to Google Sheets:', error);
       throw error;
+    }
+
+    // Step 4: Generate AI Summary and Recommendations
+    console.log('\n🤖 Generating AI summary and recommendations...\n');
+    
+    try {
+      const summary = await summarizeKeywordResults(allMetrics);
+      
+      // Output summary to console (visible in GitHub Actions)
+      console.log('='.repeat(80));
+      console.log('📊 AI 分析總結與建議');
+      console.log('='.repeat(80));
+      console.log('\n' + summary + '\n');
+      console.log('='.repeat(80));
+      
+      // Save summary to file for future use (e.g., Discord Bot integration)
+      const summaryData = {
+        timestamp: new Date().toISOString(),
+        totalKeywords: allMetrics.length,
+        keywords: allMetrics,
+        aiSummary: summary,
+      };
+      
+      fs.writeFileSync(
+        'keyword-summary.json',
+        JSON.stringify(summaryData, null, 2),
+        'utf-8'
+      );
+      
+      console.log('\n💾 Summary saved to keyword-summary.json');
+      console.log('📝 This file can be used for Discord Bot integration in the next version.\n');
+      
+    } catch (error) {
+      console.error('⚠️ Error generating summary:', error);
+      console.log('Continuing without AI summary...');
     }
   } else {
     console.log('\n⚠️ No keywords to save.');
