@@ -7,9 +7,17 @@ import { KeywordMetric } from '../types';
  */
 
 /**
+ * Delay utility for retry logic
+ */
+async function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
  * Generates niche keyword ideas using Google Gemini API.
+ * Includes retry logic for handling API errors (503, rate limits, etc.)
  * @returns Array of generated keyword strings.
- * @throws Error if Gemini API call fails.
+ * @throws Error if all retry attempts fail.
  */
 export async function generateNicheIdeas(): Promise<string[]> {
   const genAI = new GoogleGenerativeAI(config.geminiApiKey);
@@ -18,32 +26,64 @@ export async function generateNicheIdeas(): Promise<string[]> {
   const prompt =
     "Give me 5 unique, niche, micro-SaaS tool ideas or developer utility keywords (e.g., 'svg to jsx', 'json validator', 'pdf merger'). Return ONLY the keywords separated by commas.";
 
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  const text = response.text();
+  // Retry configuration
+  const maxRetries = 3;
+  const baseDelay = 3000; // 3 seconds
 
-  // Parse comma-separated keywords from response
-  // Also handle newlines and numbered list formats
-  const keywords = text
-    .replace(/\n/g, ',')
-    .replace(/^\d+\.\s*/gm, '')
-    .split(',')
-    .map((keyword) => keyword.trim())
-    .filter((keyword) => keyword.length > 0 && keyword.length < 100);
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🤖 Generating niche ideas (attempt ${attempt}/${maxRetries})...`);
+      
+      const result = await model.generateContent(prompt);
+      const response = result.response;
+      const text = response.text();
 
-  if (keywords.length === 0) {
-    throw new Error('Gemini returned no valid keywords');
+      // Parse comma-separated keywords from response
+      // Also handle newlines and numbered list formats
+      const keywords = text
+        .replace(/\n/g, ',')
+        .replace(/^\d+\.\s*/gm, '')
+        .split(',')
+        .map((keyword) => keyword.trim())
+        .filter((keyword) => keyword.length > 0 && keyword.length < 100);
+
+      if (keywords.length === 0) {
+        throw new Error('Gemini returned no valid keywords');
+      }
+
+      console.log(`🤖 Gemini generated ${keywords.length} keyword ideas`);
+      return keywords;
+
+    } catch (error: any) {
+      const isLastAttempt = attempt === maxRetries;
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+
+      console.error(`❌ Attempt ${attempt}/${maxRetries} failed:`, errorMessage);
+
+      // Check if it's a retryable error
+      const isRetryable =
+        error?.status === 503 || // Service Unavailable
+        error?.status === 429 || // Too Many Requests
+        errorMessage.includes('overloaded') ||
+        errorMessage.includes('rate limit');
+
+      if (isRetryable && !isLastAttempt) {
+        const waitTime = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
+        console.log(`⏳ Waiting ${waitTime / 1000}s before retry...`);
+        await delay(waitTime);
+        continue;
+      }
+
+      // If last attempt or non-retryable error, throw
+      if (isLastAttempt) {
+        console.error('❌ All retry attempts failed for generateNicheIdeas');
+        throw error;
+      }
+    }
   }
 
-  console.log(`🤖 Gemini generated ${keywords.length} keyword ideas`);
-  return keywords;
-}
-
-/**
- * Delay utility for retry logic
- */
-async function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  // Should not reach here, but just in case
+  throw new Error('Failed to generate niche ideas after all retries');
 }
 
 /**
