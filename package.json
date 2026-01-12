@@ -6,7 +6,9 @@
   "scripts": {
     "start": "ts-node src/index.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:serper": "ts-node test-serper.ts",
+    "test:quick": "ts-node quick-test.ts"
   },
   "keywords": [
     "keyword-discovery",

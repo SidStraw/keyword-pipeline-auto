@@ -84,6 +84,23 @@ npm run typecheck
 - ⚠️ **請勿將 `.env` 檔案提交到 Git**（已在 `.gitignore` 中設定）
 - ✅ `.env.example` 可以提交，作為環境變數範本
 - 🔑 請妥善保管您的 API Keys
+- 📊 **Serper API 限制**：不提供確切的總結果數，詳見 [SERPER_API_NOTES.md](SERPER_API_NOTES.md)
+
+## 故障排除
+
+如果遇到問題，請參考：
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - 完整的故障排除指南
+- [SERPER_API_NOTES.md](SERPER_API_NOTES.md) - Serper API 限制說明
+
+### 快速診斷
+
+```bash
+# 測試 Serper API 連接
+npm run test:serper
+
+# 快速測試關鍵字分析
+npm run test:quick
+```
 
 ## License
 

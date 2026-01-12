@@ -49,7 +49,7 @@ export async function analyzeCompetition(keyword: string): Promise<KeywordMetric
   try {
     // Add delay to avoid rate limits
     await delay(500);
-
+    
     const response = await axios.post(
       'https://google.serper.dev/search',
       {
@@ -63,16 +63,31 @@ export async function analyzeCompetition(keyword: string): Promise<KeywordMetric
       }
     );
 
-    const totalResults = response.data?.searchInformation?.totalResults ?? 0;
+    // Serper API 回應結構：
+    // - organic: 搜尋結果陣列（最多 10 筆）
+    // - 注意：Serper 不提供確切的 totalResults
+    // - 競爭度策略：有機結果數量 <= 5 表示低競爭（好機會）
+    
+    const organicResults = response.data?.organic || [];
+    const resultCount = organicResults.length;
+    
+    // 估算實際結果數：
+    // - 如果返回 10 個結果，實際可能更多，估算為 100+
+    // - 如果返回 < 10 個結果，使用實際數量
+    const estimatedTotal = resultCount === 10 ? 100 : resultCount;
 
     return {
       keyword,
       source: 'google-suggest',
-      totalResults: parseInt(String(totalResults), 10) || 0,
-      allInTitleCount: parseInt(String(totalResults), 10) || 0,
+      totalResults: estimatedTotal,
+      allInTitleCount: estimatedTotal,
     };
-  } catch (error) {
-    console.error(`Error analyzing competition for "${keyword}":`, error);
+  } catch (error: any) {
+    console.error(`❌ Error analyzing competition for "${keyword}":`, error.message);
+    if (error.response) {
+      console.error(`Status: ${error.response.status}`);
+      console.error(`Response:`, JSON.stringify(error.response.data, null, 2));
+    }
     return {
       keyword,
       source: 'google-suggest',

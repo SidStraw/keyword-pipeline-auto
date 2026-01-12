@@ -8,7 +8,9 @@ import { KeywordMetric } from './types';
 const MAX_SUGGESTIONS_PER_SEED = 5;
 
 // Maximum allInTitleCount threshold for filtering opportunities
-const MAX_ALLINTITLE_THRESHOLD = 2000;
+// 注意：由於 Serper API 限制，我們使用估算值
+// <= 50 表示低競爭（實際結果較少）
+const MAX_ALLINTITLE_THRESHOLD = 50;
 
 /**
  * Main execution function.
