@@ -20,6 +20,10 @@ async function delay(ms: number): Promise<void> {
  * @throws Error if all retry attempts fail.
  */
 export async function generateNicheIdeas(): Promise<string[]> {
+  // Add initial delay to avoid immediate rate limiting
+  console.log('⏳ Waiting 2 seconds before AI request to avoid rate limits...');
+  await delay(2000);
+
   const genAI = new GoogleGenerativeAI(config.geminiApiKey);
   const model = genAI.getGenerativeModel({ model: config.geminiModel });
 
@@ -28,7 +32,7 @@ export async function generateNicheIdeas(): Promise<string[]> {
 
   // Retry configuration
   const maxRetries = 3;
-  const baseDelay = 3000; // 3 seconds
+  const baseDelay = 5000; // Increased to 5 seconds for better reliability
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -98,8 +102,8 @@ export async function summarizeKeywordResults(metrics: KeywordMetric[]): Promise
   }
 
   // Add delay before AI request to avoid rate limiting
-  console.log('⏳ Waiting 3 seconds before AI summary to avoid rate limits...');
-  await delay(3000);
+  console.log('⏳ Waiting 5 seconds before AI summary to avoid rate limits...');
+  await delay(5000);
 
   const genAI = new GoogleGenerativeAI(config.geminiApiKey);
   const model = genAI.getGenerativeModel({ model: config.geminiModel });
@@ -138,7 +142,7 @@ ${keywordList}
 
   // Retry configuration
   const maxRetries = 3;
-  const baseDelay = 3000; // Increased to 3 seconds
+  const baseDelay = 5000; // Increased to 5 seconds
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {

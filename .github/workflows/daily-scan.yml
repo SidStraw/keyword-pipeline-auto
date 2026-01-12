@@ -2,8 +2,8 @@ name: Daily Keyword Scan
 
 on:
   schedule:
-    # Run daily at midnight UTC
-    - cron: '0 0 * * *'
+    # Run daily at 3:17 AM UTC (避開午夜高峰時段，使用隨機分鐘數分散負載)
+    - cron: '17 3 * * *'
   workflow_dispatch:
     # Allow manual triggering
 
