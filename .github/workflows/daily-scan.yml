@@ -1,0 +1,39 @@
+name: Daily Keyword Scan
+
+on:
+  schedule:
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allow manual triggering
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run keyword discovery script
+        env:
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+        run: npx ts-node src/index.ts
+
+# Required GitHub Secrets:
+# - GOOGLE_SERVICE_ACCOUNT_EMAIL: The email address of your Google service account
+# - GOOGLE_PRIVATE_KEY: The private key from your Google service account JSON file
+# - GOOGLE_SHEET_ID: The ID of your Google Sheet (from the URL)
+# - SERPER_API_KEY: Your Serper.dev API key for SERP data
