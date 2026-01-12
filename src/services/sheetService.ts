@@ -2,6 +2,9 @@ import axios from 'axios';
 import { KeywordMetric } from '../types';
 import { config } from '../config';
 
+/** Maximum number of redirects to follow for GAS Web App requests */
+const MAX_REDIRECTS = 5;
+
 /**
  * Saves keyword metrics to Google Apps Script Web App via HTTP POST.
  * @param metrics - Array of KeywordMetric objects to save.
@@ -18,7 +21,7 @@ export async function saveKeywords(metrics: KeywordMetric[]): Promise<void> {
         headers: {
           'Content-Type': 'application/json',
         },
-        maxRedirects: 5, // Handle 302 redirects automatically
+        maxRedirects: MAX_REDIRECTS,
       }
     );
 
