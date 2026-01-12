@@ -12,7 +12,7 @@ import { config } from '../config';
  */
 export async function generateNicheIdeas(): Promise<string[]> {
   const genAI = new GoogleGenerativeAI(config.geminiApiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+  const model = genAI.getGenerativeModel({ model: config.geminiModel });
 
   const prompt =
     "Give me 5 unique, niche, micro-SaaS tool ideas or developer utility keywords (e.g., 'svg to jsx', 'json validator', 'pdf merger'). Return ONLY the keywords separated by commas.";

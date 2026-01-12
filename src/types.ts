@@ -17,4 +17,5 @@ export interface Config {
   myCustomApiKey: string;
   geminiApiKey: string;
   seedKeywords: string[];
+  geminiModel: string;
 }
