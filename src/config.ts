@@ -13,6 +13,7 @@ function loadConfig(): Config {
   const myCustomApiKey = process.env.MY_CUSTOM_API_KEY;
   const geminiApiKey = process.env.GEMINI_API_KEY;
   const seedKeywordsEnv = process.env.SEED_KEYWORDS;
+  const discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL || null;
 
   if (!serperApiKey) {
     throw new Error('Missing required environment variable: SERPER_API_KEY');
@@ -41,8 +42,8 @@ function loadConfig(): Config {
     myCustomApiKey,
     geminiApiKey,
     seedKeywords,
-
     geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    discordWebhookUrl,
   };
 }
 

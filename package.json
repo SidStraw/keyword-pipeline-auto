@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test:serper": "ts-node test-serper.ts",
     "test:quick": "ts-node quick-test.ts",
-    "test:ai-summary": "ts-node test-ai-summary.ts"
+    "test:ai-summary": "ts-node test-ai-summary.ts",
+    "test:discord": "ts-node test-discord.ts"
   },
   "keywords": [
     "keyword-discovery",
