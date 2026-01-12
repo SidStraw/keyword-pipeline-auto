@@ -40,21 +40,35 @@ export async function generateNicheIdeas(): Promise<string[]> {
 }
 
 /**
+ * Delay utility for retry logic
+ */
+async function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
  * Summarizes keyword discovery results and provides actionable insights.
+ * Includes retry logic for handling API errors (503, rate limits, etc.)
  * @param metrics - Array of keyword metrics that were saved
  * @returns AI-generated summary and recommendations
  */
 export async function summarizeKeywordResults(metrics: KeywordMetric[]): Promise<string> {
   if (metrics.length === 0) {
-    return '📊 No keywords were found in this session. Try adjusting your seed keywords or competition threshold.';
+    return '📊 這次沒有找到任何關鍵字。請嘗試調整種子關鍵字或競爭度閾值。';
   }
+
+  // Add delay before AI request to avoid rate limiting
+  console.log('⏳ Waiting 3 seconds before AI summary to avoid rate limits...');
+  await delay(3000);
 
   const genAI = new GoogleGenerativeAI(config.geminiApiKey);
   const model = genAI.getGenerativeModel({ model: config.geminiModel });
 
   // Prepare data for AI analysis
-  const keywordList = metrics
-    .map((m, index) => `${index + 1}. "${m.keyword}" - Competition: ${m.allInTitleCount}`)
+  // Limit to first 10 keywords to reduce prompt size
+  const limitedMetrics = metrics.slice(0, 10);
+  const keywordList = limitedMetrics
+    .map((m, index) => `${index + 1}. "${m.keyword}" (競爭度: ${m.allInTitleCount})`)
     .join('\n');
 
   const stats = {
@@ -66,33 +80,102 @@ export async function summarizeKeywordResults(metrics: KeywordMetric[]): Promise
     highestCompetition: Math.max(...metrics.map((m) => m.allInTitleCount)),
   };
 
-  const prompt = `你是一位 SEO 和內容策略專家。請分析以下關鍵字發現結果並提供實用建議。
+  // Simplified prompt to reduce token usage
+  const prompt = `你是 SEO 專家。用繁體中文分析這些關鍵字：
 
-## 統計數據
-- 總共發現: ${stats.total} 個低競爭關鍵字
-- 平均競爭度: ${stats.avgCompetition}
-- 最低競爭度: ${stats.lowestCompetition}
-- 最高競爭度: ${stats.highestCompetition}
+總數: ${stats.total} | 平均競爭度: ${stats.avgCompetition} | 最低: ${stats.lowestCompetition} | 最高: ${stats.highestCompetition}
 
-## 關鍵字列表
+關鍵字${limitedMetrics.length < metrics.length ? `（顯示前 ${limitedMetrics.length} 個）` : ''}：
 ${keywordList}
 
 請提供：
-1. **總體評估**：這批關鍵字的整體品質和機會分析（2-3句話）
-2. **優先建議**：應該優先針對哪 3-5 個關鍵字創建內容，為什麼？
-3. **內容策略**：針對這些關鍵字，建議的內容類型和方向
-4. **下一步行動**：具體可執行的 3-5 個行動項目
+1. 總體評估（2句話）
+2. 優先建議（列出前3個關鍵字及原因）
+3. 內容策略（建議的內容類型）
+4. 下一步行動（3個具體行動）
 
-請用繁體中文回答，保持專業且實用。使用 emoji 和 markdown 格式讓輸出更易讀。`;
+用繁體中文、emoji、markdown格式回答。`;
 
-  try {
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    const summary = response.text();
+  // Retry configuration
+  const maxRetries = 3;
+  const baseDelay = 3000; // Increased to 3 seconds
 
-    return summary;
-  } catch (error) {
-    console.error('❌ Error generating AI summary:', error);
-    return `⚠️ 無法生成 AI 總結。發現了 ${metrics.length} 個關鍵字。`;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🤖 Generating AI summary (attempt ${attempt}/${maxRetries})...`);
+      
+      const result = await model.generateContent(prompt);
+      const response = result.response;
+      const summary = response.text();
+
+      // Verify response is in Traditional Chinese
+      if (summary && summary.length > 50) {
+        console.log('✅ AI summary generated successfully');
+        return summary;
+      } else {
+        throw new Error('AI response too short or empty');
+      }
+
+    } catch (error: any) {
+      const isLastAttempt = attempt === maxRetries;
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      
+      console.error(`❌ Attempt ${attempt}/${maxRetries} failed:`, errorMessage);
+
+      // Check if it's a retryable error
+      const isRetryable = 
+        error?.status === 503 || // Service Unavailable
+        error?.status === 429 || // Too Many Requests
+        errorMessage.includes('overloaded') ||
+        errorMessage.includes('rate limit');
+
+      if (isRetryable && !isLastAttempt) {
+        const waitTime = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
+        console.log(`⏳ Waiting ${waitTime / 1000}s before retry...`);
+        await delay(waitTime);
+        continue;
+      }
+
+      // If last attempt or non-retryable error, return fallback message
+      if (isLastAttempt) {
+        console.error('❌ All retry attempts failed');
+        return generateFallbackSummary(metrics, stats);
+      }
+    }
   }
+
+  // Fallback (should not reach here, but just in case)
+  return generateFallbackSummary(metrics, stats);
+}
+
+/**
+ * Generate a fallback summary when AI is unavailable
+ */
+function generateFallbackSummary(metrics: KeywordMetric[], stats: any): string {
+  const topKeywords = metrics
+    .sort((a, b) => a.allInTitleCount - b.allInTitleCount)
+    .slice(0, 5)
+    .map((m, i) => `${i + 1}. "${m.keyword}" (競爭度: ${m.allInTitleCount})`)
+    .join('\n');
+
+  return `## 📊 關鍵字發現摘要
+
+⚠️ AI 總結服務暫時無法使用，以下是基本分析：
+
+### 統計數據
+- 總共發現：${stats.total} 個低競爭關鍵字
+- 平均競爭度：${stats.avgCompetition}
+- 競爭度範圍：${stats.lowestCompetition} - ${stats.highestCompetition}
+
+### 優先推薦關鍵字（按競爭度排序）
+${topKeywords}
+
+### 建議
+1. ✅ 優先針對競爭度最低的關鍵字創建內容
+2. 📝 研究每個關鍵字的搜尋意圖和相關主題
+3. 🎯 制定內容日曆，系統性地覆蓋這些關鍵字
+4. 📊 追蹤每個關鍵字的排名和流量表現
+5. 🔄 定期更新和優化已發布的內容
+
+💡 提示：稍後可以重新執行以獲取完整的 AI 分析建議。`;
 }
