@@ -60,7 +60,7 @@ function getLogPaths(endTime: Date): {
   const minute = String(endTime.getUTCMinutes()).padStart(2, '0');
   const second = String(endTime.getUTCSeconds()).padStart(2, '0');
 
-  const folder = `${year}${month}`;
+  const folder = `${year}_${month}`;
   const filename = `${day}_${hour}${minute}${second}.md`;
 
   const absoluteDir = path.resolve('logs', folder);
