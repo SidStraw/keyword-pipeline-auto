@@ -8,9 +8,10 @@ Keyword Discovery Automation tool for GitHub Actions
 ✅ Google Suggest API 整合  
 ✅ Serper API 競爭度分析  
 ✅ Google Sheets 自動儲存  
-✅ **AI 總結與建議**（Gemini）  
+✅ **AI 總結與建議**（GitHub Copilot CLI）  
 ✅ GitHub Actions 自動化支援  
-🔜 Discord Bot 通知（即將推出）
+✅ Discord Webhook 通知  
+✅ CI 成功後自動歸檔結果與 AI 摘要到 `logs/YYYYMM/HHmmss.md`，並更新 `logs/index.json`（方便 GitHub Pages 對外提供）
 
 ## 工作流程
 
@@ -19,8 +20,9 @@ Keyword Discovery Automation tool for GitHub Actions
 3. **競爭度分析** → Serper API 檢查 allintitle 結果
 4. **過濾篩選** → 只保留低競爭關鍵字
 5. **儲存結果** → 寫入 Google Sheets
-6. **AI 分析** → Gemini 生成總結和建議
-7. **輸出報告** → Console 和 JSON 檔案
+6. **AI 分析** → GitHub Copilot CLI 生成總結和建議
+7. **日誌歸檔** → 以完成時間（UTC）生成 `logs/YYYYMM/HHmmss.md`，並更新 `logs/index.json`
+8. **輸出報告** → Console、Markdown 日誌、JSON 檔案（含 AI 摘要）
 
 ## 本地開發設置
 
@@ -34,40 +36,16 @@ Keyword Discovery Automation tool for GitHub Actions
 
 2. **填寫必要的 API Keys**
 
-   在 `.env` 文件中填入以下必要的環境變數：
-
-   #### SERPER_API_KEY (必填)
-
-   - 用於 Google 搜尋建議和競爭分析
-   - 取得方式：前往 [https://serper.dev/](https://serper.dev/) 註冊並獲取 API Key
-
-   #### GAS_WEB_APP_URL (必填)
-
-   - 用於將關鍵字儲存到 Google Sheets
-   - 取得方式：部署 Google Apps Script Web App 並複製 URL
-
-   #### MY_CUSTOM_API_KEY (必填)
-
-   - 用於 GAS Web App 身份驗證
-   - 設置方式：自訂一個安全的密鑰，需與 GAS Web App 中的設定一致
-
-   #### GEMINI_API_KEY (必填)
-
-   - 用於 AI 生成利基關鍵字想法
-   - 取得方式：前往 [https://aistudio.google.com/](https://aistudio.google.com/) 獲取 API Key
+   - `SERPER_API_KEY`：Serper.dev API 金鑰，用於搜尋建議與競爭分析。
+   - `GAS_WEB_APP_URL`：Google Apps Script Web App URL，用於寫入 Google Sheets。
+   - `MY_CUSTOM_API_KEY`：提供給 GAS 的驗證密鑰，需與 GAS 設定一致。
+   - `GH_TOKEN`：GitHub PAT，需啟用 **Copilot Requests** 權限以呼叫 Copilot CLI（可使用 `COPILOT_GITHUB_TOKEN` 取代）。
 
 3. **選填環境變數**
 
-   #### SEED_KEYWORDS (選填)
-
-   - 種子關鍵字（以逗號分隔）
-   - 如果未提供，AI 將自動生成
-   - 範例：`SEED_KEYWORDS=SEO,content marketing,keyword research`
-
-   #### GEMINI_MODEL (選填)
-
-   - 預設值：`gemini-2.5-flash`
-   - 其他選項：`gemini-1.5-pro`, `gemini-1.5-flash`
+   - `SEED_KEYWORDS`：種子關鍵字（逗號分隔），未提供時由 Copilot 自動生成。
+   - `COPILOT_MODEL`：Copilot 模型名稱，預設 `claude-haiku-4.5`。
+   - `DISCORD_WEBHOOK_URL`：若提供則在成功/失敗時推送 Discord 通知。
 
 ### 安裝依賴
 
@@ -100,21 +78,31 @@ npm run typecheck
    - 所有低競爭關鍵字
    - 包含競爭度數據
 
-3. **keyword-summary.json**
-   - 完整的執行摘要
+3. **logs/YYYYMM/HHmmss.md**
+   - 以完成時間（UTC）命名的 Markdown 檔，包含執行摘要與 AI 總結
+   - 便於直接透過 GitHub Pages 對外提供
+
+4. **logs/index.json**
+   - JSON Array，列出所有 Markdown 檔的相對路徑（例如 `202601/210130.md`）
+   - 可供前端直接讀取最新清單
+
+5. **keyword-summary.json**
+   - 完整的執行摘要（向下相容用途）
    - AI 分析結果
-   - 適合用於後續整合（如 Discord Bot）
 
 ### GitHub Actions 中閱讀 AI 總結
 
-在 GitHub Actions workflow 中，AI 總結會顯示在 step 輸出：
+在 GitHub Actions workflow 中，AI 總結會顯示在步驟輸出，並在成功後自動寫入 `logs/YYYYMM/HHmmss.md` 並更新 `logs/index.json`（使用 UTC 時間）：
 
 ```yaml
 - name: Run Keyword Discovery
-  run: npm start
-  # AI 總結會顯示在這個 step 的輸出中
-  # 在 Actions 日誌中查找 "📊 AI 分析總結與建議" 區塊
+  run: npx ts-node src/index.ts
+# 成功後 workflow 會自動 commit `logs/` 目錄，方便 GitHub Pages 對外提供
 ```
+
+使用 `npx ts-node src/index.ts` 與 CI 執行方式保持一致，避免 npm script 變更造成行為差異。
+
+⚠️ 僅成功的工作流程會寫入並提交 `logs/` 檔案；失敗時可直接在 Actions 日誌查看錯誤。
 
 ## 環境變數說明
 
@@ -123,9 +111,10 @@ npm run typecheck
 | `SERPER_API_KEY` | ✅ | Serper API 金鑰，用於搜尋建議 |
 | `GAS_WEB_APP_URL` | ✅ | Google Apps Script Web App URL |
 | `MY_CUSTOM_API_KEY` | ✅ | GAS Web App 身份驗證金鑰 |
-| `GEMINI_API_KEY` | ✅ | Google Gemini API 金鑰 |
+| `GH_TOKEN` / `COPILOT_GITHUB_TOKEN` | ✅ | GitHub Copilot CLI 權杖（需 Copilot Requests 權限） |
 | `SEED_KEYWORDS` | ❌ | 種子關鍵字（逗號分隔） |
-| `GEMINI_MODEL` | ❌ | Gemini 模型名稱 |
+| `COPILOT_MODEL` | ❌ | Copilot 模型名稱（預設：`claude-haiku-4.5`） |
+| `DISCORD_WEBHOOK_URL` | ❌ | Discord Webhook URL，用於通知 |
 
 ## 注意事項
 
@@ -133,6 +122,7 @@ npm run typecheck
 - ✅ `.env.example` 可以提交，作為環境變數範本
 - 🔑 請妥善保管您的 API Keys
 - 📊 **Serper API 限制**：不提供確切的總結果數，詳見 [SERPER_API_NOTES.md](SERPER_API_NOTES.md)
+- 🗂️ CI 會自動更新 `logs/` 目錄與 `logs/index.json`，如需手動調整請同步維護索引
 
 ## 故障排除
 
@@ -151,25 +141,6 @@ npm run test:serper
 # 快速測試關鍵字分析
 npm run test:quick
 ```
-
-## 下一版本預告
-
-### 🤖 Discord Bot 整合 (v1.1)
-
-下一個版本將支援 Discord Bot 通知：
-
-- 📨 自動發送關鍵字發現結果到 Discord 頻道
-- 📊 格式化的統計數據展示
-- 🤖 AI 總結和建議（Embed 格式）
-- 📋 完整關鍵字列表（折疊顯示）
-
-查看詳細計畫：[DISCORD_INTEGRATION_PLAN.md](DISCORD_INTEGRATION_PLAN.md)
-
-**準備工作：**
-
-- `keyword-summary.json` 檔案已準備好供 Discord Bot 讀取
-- AI 總結格式已優化，適合 Discord Embed
-- 架構設計已完成，等待實作
 
 ## License
 

@@ -5,6 +5,7 @@ import { generateNicheIdeas, summarizeKeywordResults } from './services/aiServic
 import { sendPipelineNotification } from './services/discordService';
 import { KeywordMetric, PipelineResult } from './types';
 import * as fs from 'fs';
+import * as path from 'path';
 
 // Maximum suggestions to process per seed (to save API credits)
 const MAX_SUGGESTIONS_PER_SEED = 5;
@@ -13,6 +14,125 @@ const MAX_SUGGESTIONS_PER_SEED = 5;
 // 注意：由於 Serper API 限制，我們使用估算值
 // <= 50 表示低競爭（實際結果較少）
 const MAX_ALLINTITLE_THRESHOLD = 50;
+
+function formatDuration(startTime: Date, endTime: Date): string {
+  const durationMs = endTime.getTime() - startTime.getTime();
+  const totalSeconds = Math.floor(durationMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const parts = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0 || hours > 0) parts.push(`${minutes}m`);
+  parts.push(`${seconds}s`);
+  return parts.join(' ');
+}
+
+function getTopKeywords(metrics: KeywordMetric[], count: number = 5): string {
+  if (metrics.length === 0) {
+    return '- None';
+  }
+
+  // "Top" here refers to the best opportunities with the lowest competition values
+  const sorted = [...metrics].sort(
+    (a, b) => a.allInTitleCount - b.allInTitleCount
+  );
+
+  return sorted
+    .slice(0, count)
+    .map(
+      (m, i) =>
+        `- ${i + 1}. \`${m.keyword}\` (competition: ${m.allInTitleCount})`
+    )
+    .join('\n');
+}
+
+function getLogPaths(endTime: Date): {
+  absoluteDir: string;
+  absolutePath: string;
+  relativePath: string;
+} {
+  const year = endTime.getUTCFullYear();
+  const month = String(endTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(endTime.getUTCDate()).padStart(2, '0');
+  const hour = String(endTime.getUTCHours()).padStart(2, '0');
+  const minute = String(endTime.getUTCMinutes()).padStart(2, '0');
+  const second = String(endTime.getUTCSeconds()).padStart(2, '0');
+
+  const folder = `${year}${month}`;
+  const filename = `${day}_${hour}${minute}${second}.md`;
+
+  const absoluteDir = path.resolve('logs', folder);
+  const absolutePath = path.join(absoluteDir, filename);
+  // Use POSIX paths for index entries to keep GitHub Pages URLs consistent
+  const relativePath = path.posix.join(folder, filename);
+
+  return { absoluteDir, absolutePath, relativePath };
+}
+
+function updateLogsIndex(relativePath: string): void {
+  const indexPath = path.resolve('logs', 'index.json');
+  let entries: string[] = [];
+
+  if (fs.existsSync(indexPath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+      if (Array.isArray(existing)) {
+        entries = existing.filter((item): item is string => typeof item === 'string');
+      } else {
+        console.warn('⚠️ logs/index.json is not an array. Recreating index.');
+      }
+    } catch (error) {
+      console.error('⚠️ Unable to parse existing logs/index.json, recreating it.', error);
+    }
+  }
+
+  if (!entries.includes(relativePath)) {
+    entries.push(relativePath);
+  }
+
+  entries.sort();
+  fs.writeFileSync(indexPath, JSON.stringify(entries, null, 2), 'utf-8');
+}
+
+function writeRunLog(result: PipelineResult): string | null {
+  if (!result.success) {
+    return null;
+  }
+
+  try {
+    const { absoluteDir, absolutePath, relativePath } = getLogPaths(result.endTime);
+    fs.mkdirSync(absoluteDir, { recursive: true });
+
+    const duration = formatDuration(result.startTime, result.endTime);
+    const topKeywords = getTopKeywords(result.metrics, 5);
+
+    const contentLines = [
+      '# Keyword Pipeline Result (UTC)',
+      '',
+      '- Status: Success',
+      `- Started at: ${result.startTime.toISOString()}`,
+      `- Finished at: ${result.endTime.toISOString()}`,
+      `- Duration: ${duration}`,
+      `- Keywords found: ${result.totalKeywords}`,
+      '',
+      '## Top 5 Low-Competition Keywords',
+      topKeywords,
+      '',
+      '## AI Summary',
+      result.aiSummary || '(No AI summary for this run)',
+    ];
+
+    fs.writeFileSync(absolutePath, contentLines.join('\n'), 'utf-8');
+    updateLogsIndex(relativePath);
+
+    return relativePath;
+  } catch (error) {
+    console.error('⚠️ Failed to write logs file:', error);
+    return null;
+  }
+}
 
 /**
  * Main execution function.
@@ -138,6 +258,12 @@ async function main(): Promise<void> {
       startTime,
       endTime,
     };
+
+    // Per requirement: archive outputs only on successful runs
+    const logPath = writeRunLog(pipelineResult);
+    if (logPath) {
+      console.log(`\n💾 執行結果已儲存：logs/${logPath}`);
+    }
 
     console.log('\n📤 Sending Discord notification...');
     await sendPipelineNotification(pipelineResult);
