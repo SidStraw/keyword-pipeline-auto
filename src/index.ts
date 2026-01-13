@@ -55,12 +55,13 @@ function getLogPaths(endTime: Date): {
 } {
   const year = endTime.getUTCFullYear();
   const month = String(endTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(endTime.getUTCDate()).padStart(2, '0');
   const hour = String(endTime.getUTCHours()).padStart(2, '0');
   const minute = String(endTime.getUTCMinutes()).padStart(2, '0');
   const second = String(endTime.getUTCSeconds()).padStart(2, '0');
 
   const folder = `${year}${month}`;
-  const filename = `${hour}${minute}${second}.md`;
+  const filename = `${day}_${hour}${minute}${second}.md`;
 
   const absoluteDir = path.resolve('logs', folder);
   const absolutePath = path.join(absoluteDir, filename);
