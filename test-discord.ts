@@ -65,6 +65,7 @@ async function testDiscord(): Promise<void> {
 3. 建立 backlink 策略`,
     startTime: new Date(Date.now() - 120000), // 2 minutes ago
     endTime: new Date(),
+    seeds: ['svg converter', 'online tools', 'developer utilities'],
   };
 
   const successNotification = await sendPipelineNotification(successResult);
@@ -81,6 +82,7 @@ async function testDiscord(): Promise<void> {
     error: 'API rate limit exceeded: Too many requests to Serper API',
     startTime: new Date(Date.now() - 45000), // 45 seconds ago
     endTime: new Date(),
+    seeds: ['svg converter'],
   };
 
   const errorNotification = await sendPipelineNotification(errorResult);

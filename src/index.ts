@@ -48,6 +48,25 @@ function getTopKeywords(metrics: KeywordMetric[], count: number = 5): string {
     .join('\n');
 }
 
+function getAllKeywordsTable(metrics: KeywordMetric[]): string {
+  if (metrics.length === 0) {
+    return '*No keywords found*';
+  }
+
+  // Sort by competition (ascending) for display
+  const sorted = [...metrics].sort(
+    (a, b) => a.allInTitleCount - b.allInTitleCount
+  );
+
+  const header = '| # | Keyword | Competition | Source |';
+  const separator = '|---|---------|-------------|--------|';
+  const rows = sorted.map(
+    (m, i) => `| ${i + 1} | ${m.keyword} | ${m.allInTitleCount} | ${m.source} |`
+  );
+
+  return [header, separator, ...rows].join('\n');
+}
+
 function getLogPaths(endTime: Date): {
   absoluteDir: string;
   absolutePath: string;
@@ -107,6 +126,10 @@ function writeRunLog(result: PipelineResult): string | null {
 
     const duration = formatDuration(result.startTime, result.endTime);
     const topKeywords = getTopKeywords(result.metrics, 5);
+    const allKeywordsTable = getAllKeywordsTable(result.metrics);
+    const seedsList = result.seeds.length > 0
+      ? result.seeds.map((s, i) => `${i + 1}. \`${s}\``).join('\n')
+      : '*No seeds provided*';
 
     const contentLines = [
       '# Keyword Pipeline Result (UTC)',
@@ -117,8 +140,14 @@ function writeRunLog(result: PipelineResult): string | null {
       `- Duration: ${duration}`,
       `- Keywords found: ${result.totalKeywords}`,
       '',
+      '## Seeds Used',
+      seedsList,
+      '',
       '## Top 5 Low-Competition Keywords',
       topKeywords,
+      '',
+      '## All Keywords',
+      allKeywordsTable,
       '',
       '## AI Summary',
       result.aiSummary || '(No AI summary for this run)',
@@ -141,13 +170,13 @@ async function main(): Promise<void> {
   const startTime = new Date();
   let aiSummary: string | null = null;
   const allMetrics: KeywordMetric[] = [];
+  let seeds: string[] = [];
 
   console.log('Starting Keyword Discovery Automation...');
   console.log('---');
 
   try {
     // Step 1: Check Seeds
-    let seeds: string[];
 
     if (config.seedKeywords.length > 0) {
       seeds = config.seedKeywords;
@@ -257,6 +286,7 @@ async function main(): Promise<void> {
       aiSummary,
       startTime,
       endTime,
+      seeds,
     };
 
     // Per requirement: archive outputs only on successful runs
@@ -281,6 +311,7 @@ async function main(): Promise<void> {
       error: errorMessage,
       startTime,
       endTime,
+      seeds,
     };
 
     console.log('\n📤 Sending Discord error notification...');

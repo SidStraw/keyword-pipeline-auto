@@ -63,4 +63,6 @@ export interface PipelineResult {
   error?: string;
   startTime: Date;
   endTime: Date;
+  /** Seeds used for this pipeline run */
+  seeds: string[];
 }
