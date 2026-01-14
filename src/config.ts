@@ -15,6 +15,9 @@ function loadConfig(): Config {
   const ghToken = process.env.GH_TOKEN || process.env.COPILOT_GITHUB_TOKEN;
   const seedKeywordsEnv = process.env.SEED_KEYWORDS;
   const discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL || null;
+  // Google Custom Search API (optional, for precise totalResults)
+  const googleApiKey = process.env.GOOGLE_API_KEY || null;
+  const googleCseId = process.env.GOOGLE_CSE_ID || null;
 
   if (!serperApiKey) {
     throw new Error('Missing required environment variable: SERPER_API_KEY');
@@ -45,6 +48,8 @@ function loadConfig(): Config {
     seedKeywords,
     copilotModel: process.env.COPILOT_MODEL || 'claude-haiku-4.5',
     discordWebhookUrl,
+    googleApiKey,
+    googleCseId,
   };
 }
 

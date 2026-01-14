@@ -1,14 +1,19 @@
 import { config } from './config';
-import { fetchSuggestions, analyzeCompetition } from './services/keywordService';
+import { fetchSuggestions, analyzeCompetition, analyzeCompetitionWithVolume } from './services/keywordService';
 import { saveKeywords } from './services/sheetService';
-import { generateNicheIdeas, summarizeKeywordResults } from './services/aiService';
+import { generateNicheIdeas, summarizeKeywordResults, assessKeywordDifficulty, generateToolSuggestions } from './services/aiService';
 import { sendPipelineNotification } from './services/discordService';
-import { KeywordMetric, PipelineResult } from './types';
+import { calculatePriorityScore, calculateROIScore, estimateDevTime, rankMetrics } from './services/scoringService';
+import { isGoogleSearchConfigured } from './services/googleSearchService';
+import { KeywordMetric, PipelineResult, ToolSuggestion } from './types';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Maximum suggestions to process per seed (to save API credits)
+// Maximum suggestions to process per seed (increased for more coverage)
 const MAX_SUGGESTIONS_PER_SEED = 5;
+
+// Target number of keywords to generate per run
+const TARGET_KEYWORD_COUNT = 15;
 
 // Maximum allInTitleCount threshold for filtering opportunities
 // 注意：由於 Serper API 限制，我們使用估算值
@@ -34,16 +39,24 @@ function getTopKeywords(metrics: KeywordMetric[], count: number = 5): string {
     return '- None';
   }
 
-  // "Top" here refers to the best opportunities with the lowest competition values
+  // "Top" refers to the best opportunities with the highest priority scores
   const sorted = [...metrics].sort(
-    (a, b) => a.allInTitleCount - b.allInTitleCount
+    (a, b) => (b.priorityScore || 0) - (a.priorityScore || 0)
   );
 
   return sorted
     .slice(0, count)
     .map(
-      (m, i) =>
-        `- ${i + 1}. \`${m.keyword}\` (competition: ${m.allInTitleCount})`
+      (m, i) => {
+        const parts = [
+          `- ${i + 1}. \`${m.keyword}\``,
+          `priority: ${m.priorityScore || 'N/A'}`,
+          `competition: ${m.allInTitleCount}`,
+          m.roiScore ? `ROI: ${m.roiScore}` : '',
+          m.estimatedDevTime ? `dev: ${m.estimatedDevTime}h` : '',
+        ].filter(Boolean);
+        return parts.join(' | ');
+      }
     )
     .join('\n');
 }
@@ -53,15 +66,15 @@ function getAllKeywordsTable(metrics: KeywordMetric[]): string {
     return '*No keywords found*';
   }
 
-  // Sort by competition (ascending) for display
+  // Sort by priority score (descending) for display
   const sorted = [...metrics].sort(
-    (a, b) => a.allInTitleCount - b.allInTitleCount
+    (a, b) => (b.priorityScore || 0) - (a.priorityScore || 0)
   );
 
-  const header = '| # | Keyword | Competition | Source |';
-  const separator = '|---|---------|-------------|--------|';
+  const header = '| # | Keyword | Priority | Competition | Search Vol | Difficulty | ROI | Source |';
+  const separator = '|---|---------|----------|-------------|------------|------------|-----|--------|';
   const rows = sorted.map(
-    (m, i) => `| ${i + 1} | ${m.keyword} | ${m.allInTitleCount} | ${m.source} |`
+    (m, i) => `| ${i + 1} | ${m.keyword} | ${m.priorityScore || 'N/A'} | ${m.allInTitleCount} | ${m.searchVolume || 'N/A'} | ${m.buildDifficulty || 'N/A'} | ${m.roiScore || 'N/A'} | ${m.source} |`
   );
 
   return [header, separator, ...rows].join('\n');
@@ -131,6 +144,24 @@ function writeRunLog(result: PipelineResult): string | null {
       ? result.seeds.map((s, i) => `${i + 1}. \`${s}\``).join('\n')
       : '*No seeds provided*';
 
+    // Build top suggestions section if available
+    let topSuggestionsSection = '';
+    if (result.topSuggestions && result.topSuggestions.length > 0) {
+      const suggestionCards = result.topSuggestions.map((s, i) => `
+### ${i + 1}. ${s.toolName}
+- **關鍵字**: ${s.keyword}
+- **概念**: ${s.concept}
+- **技術棧**: ${s.techStack.join(', ')}
+- **CTA**: ${s.ctaSuggestion}
+- **一句話**: ${s.oneLiner}
+- **優先分**: ${s.priorityScore} | **ROI**: ${s.roiScore} | **開發時間**: ${s.estimatedDevTime}h
+`).join('\n');
+      topSuggestionsSection = `
+## 🎯 Top 3 Tool Suggestions
+${suggestionCards}
+`;
+    }
+
     const contentLines = [
       '# Keyword Pipeline Result (UTC)',
       '',
@@ -143,9 +174,9 @@ function writeRunLog(result: PipelineResult): string | null {
       '## Seeds Used',
       seedsList,
       '',
-      '## Top 5 Low-Competition Keywords',
+      '## Top 5 Priority Keywords',
       topKeywords,
-      '',
+      topSuggestionsSection,
       '## All Keywords',
       allKeywordsTable,
       '',
@@ -165,39 +196,54 @@ function writeRunLog(result: PipelineResult): string | null {
 
 /**
  * Main execution function.
+ * Enhanced workflow with:
+ * - 15-20 keyword generation per run
+ * - Google Custom Search API for precise competition (if configured)
+ * - Google Trends for search volume estimation
+ * - AI-powered build difficulty and relevance assessment
+ * - Priority score calculation with ROI and dev time estimates
+ * - Top 3 tool suggestions with detailed cards
  */
 async function main(): Promise<void> {
   const startTime = new Date();
   let aiSummary: string | null = null;
   const allMetrics: KeywordMetric[] = [];
   let seeds: string[] = [];
+  let topSuggestions: ToolSuggestion[] = [];
 
-  console.log('Starting Keyword Discovery Automation...');
+  console.log('🚀 Starting Enhanced Keyword Discovery Automation...');
+  console.log('---');
+  
+  // Log API configuration status
+  if (isGoogleSearchConfigured()) {
+    console.log('✅ Google Custom Search API configured (precise competition data)');
+  } else {
+    console.log('ℹ️ Google Custom Search API not configured, using Serper API');
+  }
   console.log('---');
 
   try {
-    // Step 1: Check Seeds
-
+    // Step 1: Generate or use provided seeds
     if (config.seedKeywords.length > 0) {
       seeds = config.seedKeywords;
       console.log(`📋 Using provided seed keywords: ${seeds.join(', ')}`);
     } else {
-      console.log('🤖 Auto-Pilot Mode: Generating seeds with Copilot CLI...');
-      seeds = await generateNicheIdeas();
+      console.log(`🤖 Auto-Pilot Mode: Generating ${TARGET_KEYWORD_COUNT} seeds with Copilot CLI...`);
+      seeds = await generateNicheIdeas(TARGET_KEYWORD_COUNT);
 
       if (seeds.length === 0) {
         console.error('❌ Failed to generate seed keywords. Exiting.');
         process.exit(1);
       }
 
-      console.log(`🎯 Generated seeds: ${seeds.join(', ')}`);
+      console.log(`🎯 Generated ${seeds.length} seeds: ${seeds.join(', ')}`);
     }
 
     console.log(`Max suggestions per seed: ${MAX_SUGGESTIONS_PER_SEED}`);
     console.log(`AllInTitle threshold: < ${MAX_ALLINTITLE_THRESHOLD}`);
     console.log('---');
 
-    // Step 2: Analysis (The Loop)
+    // Step 2: Keyword Discovery and Analysis Loop
     for (const seed of seeds) {
       console.log(`\n🔍 Processing seed: "${seed}"`);
 
@@ -210,15 +256,15 @@ async function main(): Promise<void> {
         const limitedSuggestions = suggestions.slice(0, MAX_SUGGESTIONS_PER_SEED);
         console.log(`  Processing top ${limitedSuggestions.length} suggestions`);
 
-        // Analyze competition for each suggestion
+        // Analyze competition for each suggestion (with volume if available)
         for (const keyword of limitedSuggestions) {
           console.log(`    Analyzing: "${keyword}"`);
 
-          const metric = await analyzeCompetition(keyword);
+          const metric = await analyzeCompetitionWithVolume(keyword);
 
           // Filter: Only keep keywords with low competition
           if (metric.allInTitleCount < MAX_ALLINTITLE_THRESHOLD) {
-            console.log(`      ✓ Added (allInTitle: ${metric.allInTitleCount})`);
+            console.log(`      ✓ Added (allInTitle: ${metric.allInTitleCount}, volume: ${metric.searchVolume || 'N/A'})`);
             allMetrics.push(metric);
           } else {
             console.log(`      ✗ Skipped (allInTitle: ${metric.allInTitleCount} >= ${MAX_ALLINTITLE_THRESHOLD})`);
@@ -232,18 +278,64 @@ async function main(): Promise<void> {
     console.log('\n---');
     console.log(`📊 Total keywords found: ${allMetrics.length}`);
 
-    // Step 3: Save results
+    // Step 3: AI Assessment - Build Difficulty and Relevance
     if (allMetrics.length > 0) {
-      console.log('\n💾 Saving results to Google Sheets via GAS...');
+      console.log('\n🤖 Assessing build difficulty and relevance...');
+      
+      try {
+        const keywords = allMetrics.map((m) => m.keyword);
+        const assessments = await assessKeywordDifficulty(keywords);
+        
+        // Apply assessments to metrics
+        for (const metric of allMetrics) {
+          const assessment = assessments.get(metric.keyword);
+          if (assessment) {
+            metric.buildDifficulty = assessment.buildDifficulty;
+            metric.relevance = assessment.relevance;
+          }
+        }
+        console.log('✅ Build difficulty assessment completed');
+      } catch (error) {
+        console.warn('⚠️ Could not complete difficulty assessment:', error);
+      }
 
+      // Step 4: Calculate Priority Scores
+      console.log('\n📈 Calculating priority scores...');
+      
+      for (const metric of allMetrics) {
+        metric.priorityScore = calculatePriorityScore(metric);
+        metric.roiScore = calculateROIScore(metric);
+        metric.estimatedDevTime = estimateDevTime(
+          metric.keyword,
+          metric.buildDifficulty || 5
+        );
+      }
+      
+      // Sort by priority score
+      allMetrics.sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0));
+      console.log(`✅ Priority scores calculated. Top score: ${allMetrics[0]?.priorityScore || 'N/A'}`);
+
+      // Step 5: Generate Top 3 Tool Suggestions
+      console.log('\n🛠️ Generating top 3 tool suggestions...');
+      
+      try {
+        const topMetrics = rankMetrics(allMetrics, 3);
+        topSuggestions = await generateToolSuggestions(topMetrics);
+        console.log(`✅ Generated ${topSuggestions.length} detailed tool suggestions`);
+      } catch (error) {
+        console.warn('⚠️ Could not generate tool suggestions:', error);
+      }
+
+      // Step 6: Save results to Google Sheets
+      console.log('\n💾 Saving results to Google Sheets via GAS...');
       await saveKeywords(allMetrics);
       console.log('✅ Successfully saved all keywords!');
 
-      // Step 4: Generate AI Summary and Recommendations
+      // Step 7: Generate AI Summary and Recommendations
       console.log('\n🤖 Generating AI summary and recommendations...\n');
 
       try {
-        aiSummary = await summarizeKeywordResults(allMetrics);
+        aiSummary = await summarizeKeywordResults(allMetrics, topSuggestions);
 
         // Output summary to console (visible in GitHub Actions)
         console.log('='.repeat(80));
@@ -257,6 +349,7 @@ async function main(): Promise<void> {
           timestamp: new Date().toISOString(),
           totalKeywords: allMetrics.length,
           keywords: allMetrics,
+          topSuggestions,
           aiSummary,
         };
 
@@ -275,9 +368,9 @@ async function main(): Promise<void> {
       console.log('\n⚠️ No keywords to save.');
     }
 
-    console.log('\n🎉 Keyword Discovery Automation completed!');
+    console.log('\n🎉 Enhanced Keyword Discovery Automation completed!');
 
-    // Step 5: Send Discord notification (success)
+    // Step 8: Archive results and send Discord notification
     const endTime = new Date();
     const pipelineResult: PipelineResult = {
       success: true,
@@ -287,6 +380,7 @@ async function main(): Promise<void> {
       startTime,
       endTime,
       seeds,
+      topSuggestions,
     };
 
     // Per requirement: archive outputs only on successful runs
@@ -312,6 +406,7 @@ async function main(): Promise<void> {
       startTime,
       endTime,
       seeds,
+      topSuggestions,
     };
 
     console.log('\n📤 Sending Discord error notification...');

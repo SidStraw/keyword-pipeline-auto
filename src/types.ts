@@ -6,6 +6,33 @@ export interface KeywordMetric {
   source: string;
   totalResults: number;
   allInTitleCount: number;
+  /** Estimated search volume (from Google Trends) */
+  searchVolume?: number;
+  /** Build difficulty score (1-10, AI estimated) */
+  buildDifficulty?: number;
+  /** Product relevance score (1-10, AI estimated) */
+  relevance?: number;
+  /** Priority score calculated from formula */
+  priorityScore?: number;
+  /** Estimated development time in hours */
+  estimatedDevTime?: number;
+  /** ROI score (potential value / effort) */
+  roiScore?: number;
+}
+
+/**
+ * AI-generated tool suggestion with actionable details.
+ */
+export interface ToolSuggestion {
+  keyword: string;
+  toolName: string;
+  concept: string;
+  techStack: string[];
+  ctaSuggestion: string;
+  oneLiner: string;
+  priorityScore: number;
+  estimatedDevTime: number;
+  roiScore: number;
 }
 
 /**
@@ -19,6 +46,10 @@ export interface Config {
   seedKeywords: string[];
   copilotModel: string;
   discordWebhookUrl: string | null;
+  /** Google Custom Search API key (optional, for precise totalResults) */
+  googleApiKey: string | null;
+  /** Google Custom Search Engine ID (optional) */
+  googleCseId: string | null;
 }
 
 /**
@@ -65,4 +96,6 @@ export interface PipelineResult {
   endTime: Date;
   /** Seeds used for this pipeline run */
   seeds: string[];
+  /** Top tool suggestions with actionable details */
+  topSuggestions?: ToolSuggestion[];
 }
