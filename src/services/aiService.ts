@@ -159,14 +159,35 @@ No explanations, just the ratings.`;
     try {
       const response = await executeCopilotPrompt(prompt);
       
+      // Validate response format before parsing
+      // Expected format: "keyword1:difficulty,relevance|keyword2:difficulty,relevance"
+      if (!response || typeof response !== 'string') {
+        console.warn('⚠️ Invalid AI response format, using defaults');
+        for (const keyword of batch) {
+          results.set(keyword, { buildDifficulty: 5, relevance: 5 });
+        }
+        continue;
+      }
+      
       // Parse response: "keyword1:3,8|keyword2:2,9"
       const pairs = response.split('|');
+      let parsedCount = 0;
+      
       for (const pair of pairs) {
-        const match = pair.match(/(.+):(\d+),(\d+)/);
+        // More flexible regex to handle various AI response formats
+        const match = pair.match(/(.+?)\s*:\s*(\d+)\s*,\s*(\d+)/);
         if (match) {
           const keyword = match[1].trim().toLowerCase();
-          const difficulty = Math.min(10, Math.max(1, parseInt(match[2], 10)));
-          const relevance = Math.min(10, Math.max(1, parseInt(match[3], 10)));
+          const difficultyRaw = parseInt(match[2], 10);
+          const relevanceRaw = parseInt(match[3], 10);
+          
+          // Validate parsed numbers
+          if (isNaN(difficultyRaw) || isNaN(relevanceRaw)) {
+            continue;
+          }
+          
+          const difficulty = Math.min(10, Math.max(1, difficultyRaw));
+          const relevance = Math.min(10, Math.max(1, relevanceRaw));
           
           // Find the original keyword (case-insensitive match)
           const originalKeyword = batch.find(
@@ -174,8 +195,14 @@ No explanations, just the ratings.`;
           );
           if (originalKeyword) {
             results.set(originalKeyword, { buildDifficulty: difficulty, relevance });
+            parsedCount++;
           }
         }
+      }
+      
+      // If parsing failed for most keywords, use defaults for the rest
+      if (parsedCount < batch.length / 2) {
+        console.warn(`⚠️ Only parsed ${parsedCount}/${batch.length} keywords, using defaults for rest`);
       }
     } catch (error) {
       console.warn(`⚠️ Could not assess batch, using defaults`);

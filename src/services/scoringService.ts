@@ -11,19 +11,28 @@ import { KeywordMetric, ToolSuggestion } from '../types';
  * - Relevance: 10%
  */
 
-// Score weights
+// Score weights - configurable for different strategies
 const WEIGHTS = {
-  searchVolume: 0.40,
-  competition: 0.30,
-  buildDifficulty: 0.20,
-  relevance: 0.10,
+  searchVolume: 0.40,    // Higher search volume = more traffic potential
+  competition: 0.30,     // Lower competition = easier to rank
+  buildDifficulty: 0.20, // Lower difficulty = faster to market
+  relevance: 0.10,       // Higher relevance = better product-market fit
 };
 
-// Normalization constants
-const MAX_SEARCH_VOLUME = 10000;
-const MAX_COMPETITION = 1000;
-const MAX_BUILD_DIFFICULTY = 10;
-const MAX_RELEVANCE = 10;
+// Normalization constants based on typical ranges for tool keywords
+// These thresholds are calibrated for niche developer/utility tools
+const NORMALIZATION = {
+  // 10k monthly searches is considered high for niche tools
+  // Most successful free tools see 1k-5k searches/month
+  maxSearchVolume: 10000,
+  // 1000 allintitle results indicates high competition
+  // <50 is ideal, 50-200 is moderate, >500 is competitive
+  maxCompetition: 1000,
+  // AI assessment scale 1-10 where 1=trivial, 10=complex enterprise tool
+  maxBuildDifficulty: 10,
+  // AI assessment scale 1-10 where 10=perfectly aligned with tool builder use case
+  maxRelevance: 10,
+};
 
 /**
  * Normalize a value to 0-100 scale
@@ -42,24 +51,24 @@ function normalize(value: number, max: number, inverse: boolean = false): number
 export function calculatePriorityScore(metric: KeywordMetric): number {
   const searchVolumeScore = normalize(
     metric.searchVolume || 100,
-    MAX_SEARCH_VOLUME
+    NORMALIZATION.maxSearchVolume
   );
   
   const competitionScore = normalize(
     metric.allInTitleCount,
-    MAX_COMPETITION,
+    NORMALIZATION.maxCompetition,
     true // Lower competition is better
   );
   
   const buildDifficultyScore = normalize(
     metric.buildDifficulty || 5,
-    MAX_BUILD_DIFFICULTY,
+    NORMALIZATION.maxBuildDifficulty,
     true // Lower difficulty is better
   );
   
   const relevanceScore = normalize(
     metric.relevance || 5,
-    MAX_RELEVANCE
+    NORMALIZATION.maxRelevance
   );
 
   const priorityScore =
@@ -178,19 +187,19 @@ export function getScoreBreakdown(metric: KeywordMetric): {
 } {
   const searchVolumeScore = normalize(
     metric.searchVolume || 100,
-    MAX_SEARCH_VOLUME
+    NORMALIZATION.maxSearchVolume
   );
   const competitionScore = normalize(
     metric.allInTitleCount,
-    MAX_COMPETITION,
+    NORMALIZATION.maxCompetition,
     true
   );
   const buildDifficultyScore = normalize(
     metric.buildDifficulty || 5,
-    MAX_BUILD_DIFFICULTY,
+    NORMALIZATION.maxBuildDifficulty,
     true
   );
-  const relevanceScore = normalize(metric.relevance || 5, MAX_RELEVANCE);
+  const relevanceScore = normalize(metric.relevance || 5, NORMALIZATION.maxRelevance);
 
   return {
     searchVolumeContribution: Math.round(searchVolumeScore * WEIGHTS.searchVolume * 10) / 10,

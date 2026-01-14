@@ -55,11 +55,21 @@ export async function searchAllInTitle(keyword: string): Promise<GoogleSearchRes
     });
 
     // Extract totalResults from the response
-    // API returns totalResults as a string
-    const totalResults = parseInt(
-      response.data?.queries?.request?.[0]?.totalResults || '0',
-      10
-    );
+    // Validate response structure before accessing nested properties
+    const queries = response.data?.queries;
+    const requestArray = queries?.request;
+    
+    let totalResults = 0;
+    if (Array.isArray(requestArray) && requestArray.length > 0) {
+      const totalResultsStr = requestArray[0]?.totalResults;
+      if (typeof totalResultsStr === 'string') {
+        totalResults = parseInt(totalResultsStr, 10);
+        if (isNaN(totalResults)) {
+          totalResults = 0;
+        }
+      }
+    }
+    
     const itemCount = response.data?.items?.length || 0;
 
     return {

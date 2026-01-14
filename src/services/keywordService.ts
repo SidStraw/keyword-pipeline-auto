@@ -3,13 +3,7 @@ import { KeywordMetric } from '../types';
 import { config } from '../config';
 import { isGoogleSearchConfigured, getCompetitionCount } from './googleSearchService';
 import { getSearchVolume } from './trendsService';
-
-/**
- * Delay utility function.
- */
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { delay, logError } from '../utils/errorUtils';
 
 /**
  * Fetches keyword suggestions from Google Suggest API.
@@ -113,12 +107,7 @@ async function analyzeCompetitionWithSerper(keyword: string): Promise<KeywordMet
       allInTitleCount: estimatedTotal,
     };
   } catch (error: unknown) {
-    const errorObj = error as { message?: string; response?: { status?: number; data?: unknown } };
-    console.error(`❌ Error analyzing competition for "${keyword}":`, errorObj.message);
-    if (errorObj.response) {
-      console.error(`Status: ${errorObj.response.status}`);
-      console.error(`Response:`, JSON.stringify(errorObj.response.data, null, 2));
-    }
+    logError(`Error analyzing competition for "${keyword}"`, error);
     return {
       keyword,
       source: 'serper-api',

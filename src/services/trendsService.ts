@@ -46,6 +46,8 @@ function mapInterestToVolume(interestScore: number): {
 /**
  * Fetch related queries from Google Trends
  * Uses the public suggestions endpoint
+ * Note: This endpoint may have rate limits or change without notice.
+ * Implements fallback for robustness.
  * @param keyword - Keyword to get trends for
  * @returns Trend data with interest score and volume estimate
  */
@@ -67,8 +69,28 @@ export async function getTrendData(keyword: string): Promise<TrendData> {
     });
 
     // Google Trends returns data with a prefix that needs to be removed
-    const jsonStr = response.data.replace(/^\)\]\}',\n/, '');
-    const data = JSON.parse(jsonStr);
+    // Handle cases where the prefix may vary or be absent
+    let jsonStr = response.data;
+    if (typeof jsonStr === 'string') {
+      // Try to remove known JSONP prefixes
+      const prefixPatterns = [/^\)\]\}',\n/, /^[^\[{]+/];
+      for (const pattern of prefixPatterns) {
+        const cleaned = jsonStr.replace(pattern, '');
+        if (cleaned.startsWith('[') || cleaned.startsWith('{')) {
+          jsonStr = cleaned;
+          break;
+        }
+      }
+    }
+    
+    let data: { default?: { topics?: Array<{ title?: string }> } };
+    try {
+      data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+    } catch {
+      // If parsing fails, return default estimate
+      console.warn(`⚠️ Could not parse trends response for "${keyword}"`);
+      return getDefaultTrendData();
+    }
 
     // Extract topic information if available
     const topics = data?.default?.topics || [];
@@ -82,7 +104,7 @@ export async function getTrendData(keyword: string): Promise<TrendData> {
       
       // Boost if the keyword appears as a top topic
       const exactMatch = topics.find(
-        (t: { title?: string }) => t.title?.toLowerCase() === keyword.toLowerCase()
+        (t) => t.title?.toLowerCase() === keyword.toLowerCase()
       );
       if (exactMatch) {
         interestScore = Math.min(100, interestScore + 20);
@@ -103,12 +125,19 @@ export async function getTrendData(keyword: string): Promise<TrendData> {
     // Fallback: assume low-medium interest for unknown keywords
     // This is reasonable for niche tool keywords
     console.warn(`⚠️ Could not fetch trends for "${keyword}", using default estimate`);
-    return {
-      interestScore: 25,
-      volumeCategory: 'low',
-      estimatedMonthlySearches: 300,
-    };
+    return getDefaultTrendData();
   }
+}
+
+/**
+ * Returns default trend data for fallback scenarios
+ */
+function getDefaultTrendData(): TrendData {
+  return {
+    interestScore: 25,
+    volumeCategory: 'low',
+    estimatedMonthlySearches: 300,
+  };
 }
 
 /**
