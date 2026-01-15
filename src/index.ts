@@ -155,6 +155,7 @@ function writeRunLog(result: PipelineResult): string | null {
 - **CTA**: ${s.ctaSuggestion}
 - **一句話**: ${s.oneLiner}
 - **優先分**: ${s.priorityScore} | **ROI**: ${s.roiScore} | **開發時間**: ${s.estimatedDevTime}h
+- **💡 市場缺口**: ${s.marketGap}
 `).join('\n');
       topSuggestionsSection = `
 ## 🎯 Top 3 Tool Suggestions

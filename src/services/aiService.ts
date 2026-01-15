@@ -244,6 +244,7 @@ export async function generateToolSuggestions(
 技術棧: [前端框架,必要的API或庫]
 CTA: [吸引用戶的行動呼籲]
 一句話: [SEO友好的工具描述]
+市場缺口: [分析現有競品缺少什麼功能，你的MVP應該主打什麼差異化功能，100字以內]
 
 只回答上述格式，不要額外說明。`;
 
@@ -262,6 +263,7 @@ CTA: [吸引用戶的行動呼籲]
       const techStackStr = getValue('技術棧:') || getValue('技術棧：') || 'React, TypeScript';
       const ctaSuggestion = getValue('CTA:') || getValue('CTA：') || '立即使用';
       const oneLiner = getValue('一句話:') || getValue('一句話：') || '';
+      const marketGap = getValue('市場缺口:') || getValue('市場缺口：') || '待分析';
 
       const techStack = techStackStr
         .split(/[,，]/)
@@ -278,6 +280,7 @@ CTA: [吸引用戶的行動呼籲]
         priorityScore: metric.priorityScore || 0,
         estimatedDevTime: metric.estimatedDevTime || 16,
         roiScore: metric.roiScore || 0,
+        marketGap,
       });
     } catch (error) {
       // Add basic suggestion on failure
@@ -291,6 +294,7 @@ CTA: [吸引用戶的行動呼籲]
         priorityScore: metric.priorityScore || 0,
         estimatedDevTime: metric.estimatedDevTime || 16,
         roiScore: metric.roiScore || 0,
+        marketGap: '待分析',
       });
     }
   }

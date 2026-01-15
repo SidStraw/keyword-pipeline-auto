@@ -213,12 +213,12 @@ function buildSuccessEmbed(result: PipelineResult): DiscordEmbed {
   if (result.topSuggestions && result.topSuggestions.length > 0) {
     const suggestionsText = result.topSuggestions
       .slice(0, 3)
-      .map((s, i) => `${i + 1}. **${s.toolName}** (ROI: ${s.roiScore}, ${s.estimatedDevTime}h)`)
-      .join('\n');
+      .map((s, i) => `${i + 1}. **${s.toolName}** (ROI: ${s.roiScore}, ${s.estimatedDevTime}h)\n💡 ${s.marketGap}`)
+      .join('\n\n');
     
     embed.fields?.push({
       name: '🛠️ 工具建議',
-      value: suggestionsText,
+      value: truncateText(suggestionsText, 1024),
       inline: false,
     });
   }

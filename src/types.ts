@@ -33,6 +33,8 @@ export interface ToolSuggestion {
   priorityScore: number;
   estimatedDevTime: number;
   roiScore: number;
+  /** Market gap analysis: what competitors lack and your MVP opportunity */
+  marketGap: string;
 }
 
 /**
