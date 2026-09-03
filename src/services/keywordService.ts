@@ -1,13 +1,9 @@
 import axios from 'axios';
 import { KeywordMetric } from '../types';
 import { config } from '../config';
-
-/**
- * Delay utility function.
- */
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { isGoogleSearchConfigured, getCompetitionCount } from './googleSearchService';
+import { getSearchVolume } from './trendsService';
+import { delay, logError } from '../utils/errorUtils';
 
 /**
  * Fetches keyword suggestions from Google Suggest API.
@@ -40,12 +36,40 @@ export async function fetchSuggestions(seed: string): Promise<string[]> {
 }
 
 /**
- * Analyzes competition for a keyword using Serper.dev API.
- * Performs an "allintitle" search to check competition level.
+ * Analyzes competition for a keyword using the best available API.
+ * Prefers Google Custom Search API (if configured) for precise totalResults,
+ * falls back to Serper.dev API.
  * @param keyword - The keyword to analyze.
  * @returns KeywordMetric with competition data.
  */
 export async function analyzeCompetition(keyword: string): Promise<KeywordMetric> {
+  // Try Google Custom Search API first (more accurate totalResults)
+  if (isGoogleSearchConfigured()) {
+    try {
+      const competitionCount = await getCompetitionCount(keyword);
+      
+      return {
+        keyword,
+        source: 'google-custom-search',
+        totalResults: competitionCount,
+        allInTitleCount: competitionCount,
+      };
+    } catch (error) {
+      console.warn(`⚠️ Google Custom Search failed for "${keyword}", falling back to Serper`);
+      // Fall through to Serper API
+    }
+  }
+
+  // Fallback to Serper API
+  return analyzeCompetitionWithSerper(keyword);
+}
+
+/**
+ * Analyzes competition using Serper.dev API.
+ * @param keyword - The keyword to analyze.
+ * @returns KeywordMetric with competition data.
+ */
+async function analyzeCompetitionWithSerper(keyword: string): Promise<KeywordMetric> {
   try {
     // Add delay to avoid rate limits
     await delay(500);
@@ -78,21 +102,38 @@ export async function analyzeCompetition(keyword: string): Promise<KeywordMetric
 
     return {
       keyword,
-      source: 'google-suggest',
+      source: 'serper-api',
       totalResults: estimatedTotal,
       allInTitleCount: estimatedTotal,
     };
-  } catch (error: any) {
-    console.error(`❌ Error analyzing competition for "${keyword}":`, error.message);
-    if (error.response) {
-      console.error(`Status: ${error.response.status}`);
-      console.error(`Response:`, JSON.stringify(error.response.data, null, 2));
-    }
+  } catch (error: unknown) {
+    logError(`Error analyzing competition for "${keyword}"`, error);
     return {
       keyword,
-      source: 'google-suggest',
+      source: 'serper-api',
       totalResults: 0,
       allInTitleCount: 0,
     };
   }
+}
+
+/**
+ * Enhanced competition analysis with search volume estimation.
+ * @param keyword - The keyword to analyze.
+ * @returns KeywordMetric with competition and search volume data.
+ */
+export async function analyzeCompetitionWithVolume(keyword: string): Promise<KeywordMetric> {
+  // Get basic competition data
+  const metric = await analyzeCompetition(keyword);
+  
+  // Enhance with search volume from Google Trends
+  try {
+    const searchVolume = await getSearchVolume(keyword);
+    metric.searchVolume = searchVolume;
+  } catch (error) {
+    console.warn(`⚠️ Could not get search volume for "${keyword}"`);
+    metric.searchVolume = 100; // Default estimate
+  }
+
+  return metric;
 }
