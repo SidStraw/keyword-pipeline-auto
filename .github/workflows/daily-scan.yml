@@ -43,6 +43,9 @@ jobs:
           COPILOT_MODEL: ${{ secrets.COPILOT_MODEL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           SEED_KEYWORDS: ${{ secrets.SEED_KEYWORDS }}
+          # Optional: Google Custom Search API for precise competition data
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_CSE_ID: ${{ secrets.GOOGLE_CSE_ID }}
         run: npx ts-node src/index.ts
 
       - name: Commit generated logs
@@ -69,3 +72,5 @@ jobs:
 # - SEED_KEYWORDS: Comma-separated seed keywords (if not provided, Copilot will generate them)
 # - COPILOT_MODEL: AI model to use (default: claude-haiku-4.5, options: claude-sonnet-4.5, gpt-5)
 # - DISCORD_WEBHOOK_URL: Discord webhook URL for pipeline notifications
+# - GOOGLE_API_KEY: Google Custom Search API key for precise competition data (100 free queries/day)
+# - GOOGLE_CSE_ID: Google Custom Search Engine ID

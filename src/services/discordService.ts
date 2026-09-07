@@ -115,18 +115,26 @@ function formatDuration(startTime: Date, endTime: Date): string {
 }
 
 /**
- * Gets top keywords by lowest competition.
+ * Gets top keywords by highest priority score.
  */
 function getTopKeywords(metrics: KeywordMetric[], count: number = 3): string {
   if (metrics.length === 0) return '無';
 
   const sorted = [...metrics].sort(
-    (a, b) => a.allInTitleCount - b.allInTitleCount
+    (a, b) => (b.priorityScore || 0) - (a.priorityScore || 0)
   );
 
   return sorted
     .slice(0, count)
-    .map((m, i) => `${i + 1}. \`${m.keyword}\` (競爭度: ${m.allInTitleCount})`)
+    .map((m, i) => {
+      const parts = [
+        `${i + 1}. \`${m.keyword}\``,
+        `優先: ${m.priorityScore || 'N/A'}`,
+        `競爭: ${m.allInTitleCount}`,
+      ];
+      if (m.roiScore) parts.push(`ROI: ${m.roiScore}`);
+      return parts.join(' | ');
+    })
     .join('\n');
 }
 
@@ -160,6 +168,17 @@ function buildSuccessEmbed(result: PipelineResult): DiscordEmbed {
   const stats = calculateStats(result.metrics);
   const duration = formatDuration(result.startTime, result.endTime);
 
+  // Calculate priority stats
+  const priorityScores = result.metrics
+    .map((m) => m.priorityScore)
+    .filter((s): s is number => s !== undefined);
+  const avgPriority = priorityScores.length > 0
+    ? Math.round(priorityScores.reduce((a, b) => a + b, 0) / priorityScores.length)
+    : 0;
+  const topPriority = priorityScores.length > 0
+    ? Math.max(...priorityScores)
+    : 0;
+
   const embed: DiscordEmbed = {
     title: '🎉 關鍵字探索完成',
     description: `成功找到 **${result.totalKeywords}** 個低競爭關鍵字！`,
@@ -170,8 +189,8 @@ function buildSuccessEmbed(result: PipelineResult): DiscordEmbed {
         value: [
           `• 總關鍵字數：${result.totalKeywords}`,
           `• 平均競爭度：${stats.avgCompetition}`,
-          `• 最低競爭度：${stats.minCompetition}`,
-          `• 最高競爭度：${stats.maxCompetition}`,
+          `• 平均優先分：${avgPriority}`,
+          `• 最高優先分：${topPriority}`,
         ].join('\n'),
         inline: true,
       },
@@ -189,6 +208,20 @@ function buildSuccessEmbed(result: PipelineResult): DiscordEmbed {
     footer: { text: 'Keyword Pipeline Auto' },
     timestamp: result.endTime.toISOString(),
   };
+
+  // Add top suggestions if available
+  if (result.topSuggestions && result.topSuggestions.length > 0) {
+    const suggestionsText = result.topSuggestions
+      .slice(0, 3)
+      .map((s, i) => `${i + 1}. **${s.toolName}** (ROI: ${s.roiScore}, ${s.estimatedDevTime}h)\n💡 ${s.marketGap}`)
+      .join('\n\n');
+    
+    embed.fields?.push({
+      name: '🛠️ 工具建議',
+      value: truncateText(suggestionsText, 1024),
+      inline: false,
+    });
+  }
 
   // AI summary will be sent as separate plain text message
   // to avoid character limits and preserve markdown formatting
